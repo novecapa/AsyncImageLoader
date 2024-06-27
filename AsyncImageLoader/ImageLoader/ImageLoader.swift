@@ -25,21 +25,42 @@ class ImageLoader {
 //         imageCache.countLimit = Constants.maxImages
     }
 
+    private var cacheDirectoryPath: URL? {
+        let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+        return paths.first
+    }
+
+    private func localFilePath(for url: URL) -> URL? {
+        return cacheDirectoryPath?.appendingPathComponent(url.lastPathComponent)
+    }
+
     func loadImage(with url: URL) {
         imageURL = url
         if let cachedImage = imageCache.object(forKey: url as AnyObject) as? UIImage {
             self.image = cachedImage
             return
         }
+
+        if let localPath = localFilePath(for: url),
+           let data = try? Data(contentsOf: localPath),
+           let cachedImage = UIImage(data: data) {
+            self.image = cachedImage
+            imageCache.setObject(cachedImage, forKey: url as AnyObject)
+            return
+        }
+
         URLSession.shared.dataTask(with: url) { data, _, _ in
             guard let data = data,
                   let downloadedImage = UIImage(data: data),
                   self.imageURL == url else {
                 return
             }
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 imageCache.setObject(downloadedImage, forKey: url as AnyObject)
                 self.image = downloadedImage
+                if let localPath = self.localFilePath(for: url) {
+                    try? data.write(to: localPath)
+                }
             }
         }.resume()
     }
