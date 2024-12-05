@@ -7,61 +7,72 @@
 
 import SwiftUI
 
-let imageCache: NSCache<AnyObject, AnyObject> = NSCache<AnyObject, AnyObject>()
-
 @Observable
-class ImageLoader {
-
+final class ImageLoader {
+    
     private enum Constants {
-        static let maxMB: Int = 50 * 1024 * 1024
-        static let maxImages: Int = 512
+        static let imageCacheFolder: String = "ImageCache"
     }
 
     var image: UIImage?
-    var imageURL: URL?
+    private var imageURL: URL?
+
+    private let fileManager = FileManager.default
+    private let cacheDirectory: URL? = {
+        FileManager.default.urls(
+            for: .cachesDirectory,
+            in: .userDomainMask
+        ).first?.appendingPathComponent(Constants.imageCacheFolder)
+    }()
 
     init() {
-//         imageCache.totalCostLimit = Constants.maxMB
-//         imageCache.countLimit = Constants.maxImages
-    }
-
-    private var cacheDirectoryPath: URL? {
-        let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-        return paths.first
-    }
-
-    private func localFilePath(for url: URL) -> URL? {
-        return cacheDirectoryPath?.appendingPathComponent(url.lastPathComponent)
+        self.createCacheDirectoryIfNeeded()
     }
 
     func loadImage(with url: URL) {
         imageURL = url
-        if let cachedImage = imageCache.object(forKey: url as AnyObject) as? UIImage {
+        if let cachedImage = loadImageFromDisk(url: url) {
             self.image = cachedImage
             return
         }
 
-        if let localPath = localFilePath(for: url),
-           let data = try? Data(contentsOf: localPath),
-           let cachedImage = UIImage(data: data) {
-            self.image = cachedImage
-            imageCache.setObject(cachedImage, forKey: url as AnyObject)
-            return
-        }
-
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            guard let data = data,
-                  let downloadedImage = UIImage(data: data),
-                  self.imageURL == url else {
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let self = self,
+                  let data = data,
+                  self.imageURL == url,
+                  let downloadedImage = UIImage(data: data) else {
                 return
             }
-            Task { @MainActor in
-                imageCache.setObject(downloadedImage, forKey: url as AnyObject)
+            self.saveImageToDisk(image: downloadedImage, url: url)
+            DispatchQueue.main.async {
                 self.image = downloadedImage
-                if let localPath = self.localFilePath(for: url) {
-                    try? data.write(to: localPath)
-                }
             }
         }.resume()
+    }
+}
+// MARK: Image cache methods
+extension ImageLoader {
+    private func createCacheDirectoryIfNeeded() {
+        guard let cacheDirectory else { return }
+        if !fileManager.fileExists(atPath: cacheDirectory.path) {
+            try? fileManager.createDirectory(
+                at: cacheDirectory,
+                withIntermediateDirectories: true
+            )
+        }
+    }
+
+    private func saveImageToDisk(image: UIImage, url: URL) {
+        guard let data = image.pngData(),
+              let cacheDirectory else { return }
+        let fileURL = cacheDirectory.appendingPathComponent(url.lastPathComponent)
+        try? data.write(to: fileURL)
+    }
+
+    private func loadImageFromDisk(url: URL) -> UIImage? {
+        guard let cacheDirectory else { return nil }
+        let fileURL = cacheDirectory.appendingPathComponent(url.lastPathComponent)
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        return UIImage(data: data)
     }
 }

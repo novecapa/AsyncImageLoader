@@ -9,35 +9,33 @@ import SwiftUI
 
 struct AsyncImageLoader: View {
 
+    private let url: URL?
     @State private var loader: ImageLoader
-    var url: URL?
-
-    init(loader: ImageLoader = ImageLoader(),
-         url: URL?) {
-        self.loader = loader
+    init(url: URL?,
+         loader: ImageLoader = ImageLoader()) {
         self.url = url
-        if let url {
-            loader.loadImage(with: url)
-        }
+        self.loader = loader
     }
 
     var body: some View {
-        if let image = loader.image {
-            Image(uiImage: image)
-                .resizable()
+        Group {
+            if let image = loader.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .transition(.opacity.animation(.default))
+            } else {
+                ZStack {
+                    // placeholder image
+                    Image(systemName: "mountain.2")
+                }
                 .scaledToFit()
-                .transition(.opacity.animation(.default))
-        } else {
-            ZStack {
-                // placeholder image
-                Image(systemName: "mountain.2")
+                .background(.gray.opacity(0.2))
             }
-            .scaledToFit()
-            .background(.gray.opacity(0.2))
-            .onAppear {
-                guard let url = loader.imageURL else { return }
-                loader.loadImage(with: url)
-            }
+        }
+        .onAppear {
+            guard let url else { return }
+            loader.loadImage(with: url)
         }
     }
 
