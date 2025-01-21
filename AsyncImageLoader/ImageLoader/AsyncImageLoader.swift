@@ -23,7 +23,7 @@ struct AsyncImageLoader: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
-                    .transition(.opacity.animation(.default))
+                    .transition(.opacity.animation(.easeInOut))
             } else {
                 ZStack {
                     // placeholder image
