@@ -5,6 +5,7 @@
 //  Created by Josep Cerdá Penadés on 21/6/24.
 //
 
+import CryptoKit
 import SwiftUI
 
 @Observable
@@ -62,16 +63,20 @@ extension ImageLoader {
         }
     }
 
+    private func cacheFileURL(for url: URL) -> URL? {
+        let digest = SHA256.hash(data: Data(url.absoluteString.utf8))
+        let fileName = digest.map { String(format: "%02x", $0) }.joined()
+        return cacheDirectory?.appendingPathComponent(fileName)
+    }
+
     private func saveImageToDisk(image: UIImage, url: URL) {
         guard let data = image.pngData(),
-              let cacheDirectory else { return }
-        let fileURL = cacheDirectory.appendingPathComponent(url.lastPathComponent)
+              let fileURL = cacheFileURL(for: url) else { return }
         try? data.write(to: fileURL)
     }
 
     private func loadImageFromDisk(url: URL) -> UIImage? {
-        guard let cacheDirectory else { return nil }
-        let fileURL = cacheDirectory.appendingPathComponent(url.lastPathComponent)
+        guard let fileURL = cacheFileURL(for: url) else { return nil }
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         return UIImage(data: data)
     }
