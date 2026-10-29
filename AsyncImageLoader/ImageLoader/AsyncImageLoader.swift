@@ -28,6 +28,7 @@ struct AsyncImageLoader: View {
                 ZStack {
                     // placeholder image
                     Image(systemName: "mountain.2")
+                        .foregroundColor(.gray)
                 }
                 .scaledToFit()
                 .background(.gray.opacity(0.2))
@@ -37,9 +38,5 @@ struct AsyncImageLoader: View {
             guard let url else { return }
             loader.loadImage(with: url)
         }
-    }
-
-    var imageLoaded: UIImage {
-        loader.image ?? UIImage()
     }
 }

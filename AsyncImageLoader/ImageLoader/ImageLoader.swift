@@ -37,13 +37,29 @@ final class ImageLoader {
             return
         }
 
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             guard let self = self,
                   let data = data,
-                  self.imageURL == url,
-                  let downloadedImage = UIImage(data: data) else {
+                  self.imageURL == url else {
                 return
             }
+
+            if let httpResponse = response as? HTTPURLResponse,
+               !(200...299).contains(httpResponse.statusCode) {
+                print("HTTP Error: \(httpResponse.statusCode)")
+                return
+            }
+
+            if let error = error {
+                print("Download Error: \(error)")
+                return
+            }
+
+            guard let downloadedImage = UIImage(data: data) else {
+                print("Error creating image from data")
+                return
+            }
+
             self.saveImageToDisk(image: downloadedImage, url: url)
             DispatchQueue.main.async {
                 self.image = downloadedImage
@@ -51,7 +67,9 @@ final class ImageLoader {
         }.resume()
     }
 }
+
 // MARK: Image cache methods
+
 extension ImageLoader {
     private func createCacheDirectoryIfNeeded() {
         guard let cacheDirectory else { return }
